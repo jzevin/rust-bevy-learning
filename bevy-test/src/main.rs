@@ -1,7 +1,8 @@
 use bevy::{
     app::{App, Startup, Update},
     ecs::query,
-    prelude::{Commands, Component, Query, Res, ResMut, Resource, With},
+    prelude::*,
+    state::app::StatesPlugin,
     time::{Time, Timer, TimerMode},
     DefaultPlugins, MinimalPlugins,
 };
@@ -9,11 +10,28 @@ use rand::random;
 
 fn main() {
     App::new()
-        .add_plugins(MinimalPlugins)
-        .insert_resource(MyTimer(Timer::from_seconds(0.01, TimerMode::Repeating)))
-        .add_systems(Startup, add_racers)
-        .add_systems(Update, update_racer)
+        .add_plugins((MinimalPlugins, StatesPlugin))
+        .init_state::<RaceState>() // because I'm using defaults otherwise insert_state
+        .insert_resource(MyTimer(Timer::from_seconds(0.05, TimerMode::Repeating)))
+        .insert_resource(AppState {current_race_state: RaceState::Finished, did_print: false})
+        .add_systems(Startup, (add_racers, change_app_state))
+        .add_systems(Update, (update_racer.run_if(in_state(RaceState::Racing))))
+        .add_systems(OnEnter(RaceState::Waiting), log_state)
         .run();
+}
+
+#[derive(Resource)]
+struct AppState {
+    current_race_state: RaceState,
+    did_print: bool,
+}
+
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, States)]
+enum RaceState {
+    #[default]
+    Waiting,
+    Racing,
+    Finished,
 }
 
 #[derive(Resource)]
@@ -24,6 +42,10 @@ struct Racer {
     name: String,
     energy: u32,
     x: f32,
+}
+
+fn change_app_state(mut appState: ResMut<AppState>) {
+    appState.current_race_state = RaceState::Waiting;
 }
 
 fn add_racers(mut commands: Commands) {
@@ -66,4 +88,8 @@ fn move_racer(racer: &mut Racer) {
         racer.x += 1.0;
         println!("{}'s x: {}", racer.name, racer.x);
     }
+}
+
+fn log_state(appState: Res<AppState>) {
+    println!("The Current State: {:?}", appState.current_race_state);
 }
