@@ -9,12 +9,13 @@ const NUM_BLOBS: usize = 5;
 const START_X: f32 = -540.0;
 const START_Y: f32 = 270.0;
 const BLOB_SIZE: f32 = 108.0;
-const BLOB_SPEED: f32 = 18.0;
+const BLOB_SPEED: f32 = 30.9;
 const BLOB_GAP: f32 = 136.0;
 const FINISH_LINE: f32 = START_X * -1.0;
 
 fn main() {
     App::new()
+        .insert_resource(ClearColor(Color::BLACK))
         .add_plugins(DefaultPlugins)
         .add_systems(Startup, setup)
         .add_systems(Update, (translate_blob, increment_tally))
@@ -51,10 +52,9 @@ fn get_blob_color(index: usize) -> Color {
         1 => Color::srgb(0.863, 0.078, 0.235), // CRIMSON
         2 => Color::srgb(0.133, 0.545, 0.133), // FOREST_GREEN
         3 => Color::srgb(1.0, 0.843, 0.0),     // GOLD
-        _ => Color::srgb(0.502, 0.0, 0.502),   // PURPLE
+        _ => Color::srgb(0.3, 0.0, 0.602),     // PURPLE
     }
 }
-
 
 fn spawn_blob(
     commands: &mut Commands,
@@ -66,54 +66,52 @@ fn spawn_blob(
     let position = Vec3::new(START_X, START_Y - (index as f32 * BLOB_GAP), 0.0);
 
     // Spawn blob and label as parent/child
-    commands.spawn((
-        MaterialMesh2dBundle {
-            mesh: meshes.add(Circle::new(BLOB_SIZE/2.0)).into(), // Radius is half the desired size
-            transform: Transform::default()
-                .with_translation(position),
-            material: materials.add(color),
-            ..default()
-        },
-        Blob { index },
-    )).with_children(|parent| {
-        parent.spawn((
-            Text2dBundle {
-                text: Text::from_section(
-                    index.to_string(),
-                    TextStyle {
-                        font_size: 54.0,
-                        color: Color::WHITE,
-                        ..default()
-                    },
-                ),
-                transform: Transform::from_xyz(0.0, 0.0, 1.0),  // No need for scale compensation
+    commands
+        .spawn((
+            MaterialMesh2dBundle {
+                mesh: meshes.add(Circle::new(BLOB_SIZE / 2.0)).into(), // Radius is half the desired size
+                transform: Transform::default().with_translation(position),
+                material: materials.add(color),
                 ..default()
             },
-            BlobLabel,
-        ));
-    });
+            Blob { index },
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Text2dBundle {
+                    text: Text::from_section(
+                        index.to_string(),
+                        TextStyle {
+                            font_size: 54.0,
+                            color: Color::WHITE,
+                            ..default()
+                        },
+                    ),
+                    transform: Transform::from_xyz(0.0, 0.0, 1.0), // No need for scale compensation
+                    ..default()
+                },
+                BlobLabel,
+            ));
+        });
 }
 
-fn spawn_tallies(
-    commands: &mut Commands,
-    index: usize,
-) {
+fn spawn_tallies(commands: &mut Commands, index: usize) {
     let position = Vec3::new(FINISH_LINE, START_Y - (index as f32 * BLOB_GAP), 0.0);
-    
+
     commands.spawn((
         Text2dBundle {
             text: Text::from_section(
-                "0",  // Start at zero
+                "0", // Start at zero
                 TextStyle {
                     font_size: 54.0,
-                    color: get_blob_color(index),  // Match blob color
+                    color: get_blob_color(index), // Match blob color
                     ..default()
                 },
             ),
             transform: Transform::from_translation(position),
             ..default()
         },
-        TallyLabel(index),  // Track which blob this tally belongs to
+        TallyLabel(index), // Track which blob this tally belongs to
     ));
 }
 
@@ -135,20 +133,23 @@ fn translate_blob(
     } else {
         // Normal movement
         for mut transform in query.iter_mut() {
-            let step = random::<f32>() * BLOB_SPEED;
-            // let delta = time.delta_seconds() * step;
-            transform.translation.x += step;
+            let mut step = rand::thread_rng().gen_range(0.0..BLOB_SPEED) * time.delta_seconds() * 36.0;
+            // println!("{}",time.delta_seconds());
+            let mut rnd = rand::thread_rng();
+            if rnd.gen_bool(0.25) {
+                // let delta = time.delta_seconds() * step;
+                transform.translation.x += step;
+            }
         }
     }
 }
-
 
 fn increment_tally(
     mut query: Query<(&mut Text, &TallyLabel)>,
     blob_query: Query<(&Transform, &Blob)>,
 ) {
     for (transform, blob) in blob_query.iter() {
-        if transform.translation.x >= FINISH_LINE && transform.translation.x < FINISH_LINE + 5.0 {
+        if transform.translation.x >= FINISH_LINE {
             for (mut text, tally) in query.iter_mut() {
                 if tally.0 == blob.index {
                     if let Some(value) = text.sections[0].value.parse::<i32>().ok() {
